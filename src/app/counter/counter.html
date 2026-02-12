@@ -1,0 +1,8 @@
+<div class="box">
+    <button (click)="Toggle()">Toggle Message</button>
+    
+    <p *gIf="Show.Get()"> 
+        I am visible! 
+        <span>(And so are my children)</span>
+    </p>
+</div>
