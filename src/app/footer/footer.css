@@ -1,0 +1,13 @@
+.footer-box {
+    margin-top: 20px;
+    padding: 10px;
+    background-color: #333;
+    color: white;
+    text-align: center;
+    border-radius: 4px;
+}
+button {
+    background: #555;
+    border: 1px solid #777;
+    color: white;
+}
