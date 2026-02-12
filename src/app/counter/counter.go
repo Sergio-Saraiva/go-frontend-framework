@@ -1,7 +1,10 @@
+//go:build js && wasm
+
 package counter
 
 import (
 	"fmt"
+	"go-frontend-framework/router"
 	"go-frontend-framework/signal"
 )
 
@@ -19,6 +22,10 @@ func New() *Component {
 		// 2. Initialize with some data
 		Items: signal.New([]string{"Apple", "Banana", "Cherry"}),
 	}
+}
+
+func (c *Component) GoToAbout() {
+	router.Navigate("/about")
 }
 
 func (c *Component) Increment() {

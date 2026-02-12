@@ -11,8 +11,8 @@ import (
 
 func main() {
 	// 1. Open the Template
-	inputPath := "src/app/counter/counter.html"
-	outputPath := "src/app/counter/counter_gen.go"
+	inputPath := "src/app/about/about.html"
+	outputPath := "src/app/about/about_gen.go"
 	cssPath := strings.Replace(inputPath, ".html", ".css", 1)
 
 	// 1. Parse
