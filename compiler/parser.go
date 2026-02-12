@@ -6,6 +6,7 @@ import (
 	"io"
 	"regexp"
 	"strings"
+	"unicode"
 )
 
 type Node struct {
@@ -17,6 +18,7 @@ type Node struct {
 
 var eventRegex = regexp.MustCompile(`\(([\w-]+)\)=`)
 var gIfRegex = regexp.MustCompile(`\*gIf=`)
+var gForRegex = regexp.MustCompile(`\*gFor=`)
 
 func GenerateFullFile(n Node, packageName string) string {
 	body := generateNodeCode(n, "root", "", 0)
@@ -53,6 +55,7 @@ func Parse(r io.Reader) (*Node, error) {
 	s := string(b)
 	s = eventRegex.ReplaceAllString(s, "data-event-$1=")
 	s = gIfRegex.ReplaceAllString(s, "data-g-if=")
+	s = gForRegex.ReplaceAllString(s, "data-g-for=")
 
 	decoder := xml.NewDecoder(strings.NewReader(s))
 	var root Node
@@ -66,18 +69,18 @@ func Parse(r io.Reader) (*Node, error) {
 func generateNodeCode(n Node, varName string, parentVarName string, id int) string {
 	var builder strings.Builder
 
-	// 1. Handle *gIf Structural Directive
 	for i, attr := range n.Attrs {
 		if attr.Name.Local == "data-g-if" {
 			return generateIfAttributes(attr, n, i, id, parentVarName)
 		}
+
+		if attr.Name.Local == "data-g-for" {
+			return generateForAttribute(attr, n, i, id, parentVarName)
+		}
 	}
 
-	// 2. Normal Element Creation
 	tag := n.XMLName.Local
 	builder.WriteString(fmt.Sprintf(`%s := doc.Call("createElement", "%s")`+"\n", varName, tag))
-
-	// Append to parent immediately (if not root/detached)
 	if parentVarName != "" {
 		builder.WriteString(fmt.Sprintf(`%s.Call("appendChild", %s)`+"\n", parentVarName, varName))
 	}
@@ -91,13 +94,8 @@ func generateNodeCode(n Node, varName string, parentVarName string, id int) stri
 
 func generateIfAttributes(attr xml.Attr, n Node, i int, id int, parentVarName string) string {
 	condition := attr.Value
-
-	// Remove *gIf for the inner element generation
 	nodeCopy := n
 	nodeCopy.Attrs = append(n.Attrs[:i], n.Attrs[i+1:]...)
-
-	// Generate the inner element code
-	// Pass "" as parent because we manually handle insertion inside the effect
 	innerCode := generateNodeCode(nodeCopy, "innerEl", "", id)
 
 	return fmt.Sprintf(`
@@ -127,6 +125,46 @@ func generateIfAttributes(attr xml.Attr, n Node, i int, id int, parentVarName st
             `, condition, id, parentVarName, id, id, condition, id, innerCode, id, parentVarName, id, id, id, id, id)
 }
 
+func generateForAttribute(attr xml.Attr, n Node, i int, id int, parentVarName string) string {
+	parts := strings.Split(attr.Value, " of ")
+	itemName := parts[0]
+	listName := parts[1]
+
+	nodeCopy := n
+	nodeCopy.Attrs = append(n.Attrs[:i], n.Attrs[i+1:]...)
+	innerCode := generateNodeCode(nodeCopy, "iterEl", "", id)
+
+	return fmt.Sprintf(`
+            // --- *gFor (%s of %s) ---
+            anchor%d := doc.Call("createComment", "gFor-anchor")
+            %s.Call("appendChild", anchor%d)
+            var mountedItems%d []js.Value
+
+            signal.CreateEffect(func() {
+                // Cleanup
+                for _, el := range mountedItems%d {
+                    el.Call("remove")
+                }
+                mountedItems%d = nil
+
+                // Render
+                list := c.%s.Get()
+                for _, %s := range list {
+                    {
+                        %s
+                        mountedItems%d = append(mountedItems%d, iterEl)
+                        %s.Call("insertBefore", iterEl, anchor%d.Get("nextSibling"))
+                    }
+                }
+            })`,
+		itemName, listName,
+		id, parentVarName, id, id,
+		id, id,
+		listName, itemName,
+		innerCode,
+		id, id, parentVarName, id)
+}
+
 func generateRecursionFunction(n Node, varName string, id int, builder *strings.Builder) {
 	for i, child := range n.Children {
 		childVarName := fmt.Sprintf("%s_%d", varName, i)
@@ -141,20 +179,46 @@ func generateRecursionFunction(n Node, varName string, id int, builder *strings.
 func generateContentAndInterpolation(n Node, id int, varName string, builder *strings.Builder) {
 	if len(strings.TrimSpace(n.Content)) > 0 {
 		content := strings.TrimSpace(n.Content)
+
 		if strings.Contains(content, "{{") {
 			parts := strings.Split(content, "{{")
-			expr := strings.Split(parts[1], "}}")[0]
-			expr = strings.TrimSpace(expr)
+			prefix := parts[0]
 
-			code := fmt.Sprintf(`
-            text%d := doc.Call("createTextNode", "")
-            %s.Call("appendChild", text%d)
+			rest := parts[1]
+			endParts := strings.Split(rest, "}}")
+			expr := strings.TrimSpace(endParts[0])
+			suffix := ""
+			if len(endParts) > 1 {
+				suffix = endParts[1]
+			}
+
+			if len(prefix) > 0 {
+				builder.WriteString(fmt.Sprintf(`
+                txtPrefix%d := doc.Call("createTextNode", %q)
+                %s.Call("appendChild", txtPrefix%d)
+                `, id, prefix, varName, id))
+			}
+			scopePrefix := ""
+			if len(expr) > 0 && unicode.IsUpper(rune(expr[0])) {
+				scopePrefix = "c."
+			}
+
+			builder.WriteString(fmt.Sprintf(`
+            txtDyn%d := doc.Call("createTextNode", "")
+            %s.Call("appendChild", txtDyn%d)
             signal.CreateEffect(func() {
-                text%d.Set("nodeValue", fmt.Sprintf("%%v", c.%s))
-            })`, id, varName, id, id, expr)
-			builder.WriteString(code + "\n")
+                txtDyn%d.Set("nodeValue", fmt.Sprintf("%%v", %s%s))
+            })`, id, varName, id, id, scopePrefix, expr))
+
+			if len(suffix) > 0 {
+				builder.WriteString(fmt.Sprintf(`
+                txtSuffix%d := doc.Call("createTextNode", %q)
+                %s.Call("appendChild", txtSuffix%d)
+                `, id, suffix, varName, id))
+			}
+
 		} else {
-			builder.WriteString(fmt.Sprintf(`%s.Set("innerText", "%s")`+"\n", varName, content))
+			builder.WriteString(fmt.Sprintf(`%s.Set("innerText", %q)`+"\n", varName, content))
 		}
 	}
 }

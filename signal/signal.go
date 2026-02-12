@@ -9,12 +9,12 @@ type EffectWrapper struct {
 	deps []func()
 }
 
-type Signal[T comparable] struct {
+type Signal[T any] struct {
 	value       T
 	subscribers map[int]func()
 }
 
-func New[T comparable](val T) *Signal[T] {
+func New[T any](val T) *Signal[T] {
 	return &Signal[T]{
 		value:       val,
 		subscribers: make(map[int]func()),
@@ -43,9 +43,9 @@ func (s *Signal[T]) Get() T {
 }
 
 func (s *Signal[T]) Set(val T) {
-	if s.value == val {
-		return
-	}
+	// if s.value == val {
+	// 	return
+	// }
 
 	s.value = val
 

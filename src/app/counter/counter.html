@@ -1,8 +1,13 @@
 <div class="box">
-    <button (click)="Toggle()">Toggle Message</button>
+    <h3>My Shopping List</h3>
     
-    <p *gIf="Show.Get()"> 
-        I am visible! 
-        <span>(And so are my children)</span>
-    </p>
+    <button (click)="AddItem()">+ Add Fruit</button>
+
+    <ul>
+        <li *gFor="item of Items">
+            <span>I want: {{ item }}</span>
+        </li>
+    </ul>
+
+    <p>Total items: {{ Items.Get() }}</p> 
 </div>
