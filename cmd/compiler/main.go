@@ -17,6 +17,7 @@ type FoundComponent struct {
 	ImportPath string
 	TagName    string
 	HtmlPath   string
+	Fields     map[string]bool
 }
 
 func main() {
@@ -63,7 +64,7 @@ func analyzeComponent(htmlPath string) *FoundComponent {
 		return nil
 	}
 
-	isComponent, customSelector := parseComponentInfo(goPath)
+	isComponent, customSelector, fields := parseComponentInfo(goPath)
 	if !isComponent {
 		return nil
 	}
@@ -81,6 +82,7 @@ func analyzeComponent(htmlPath string) *FoundComponent {
 		ImportPath: importPath,
 		TagName:    tagName,
 		HtmlPath:   htmlPath,
+		Fields:     fields,
 	}
 }
 
@@ -100,7 +102,7 @@ func compileComponent(comp FoundComponent, knownComponents map[string]bool) {
 		return
 	}
 
-	code := compiler.GenerateFullFile(*root, comp.Name, cssContent, knownComponents)
+	code := compiler.GenerateFullFile(*root, comp.Name, cssContent, knownComponents, comp.Fields)
 
 	outputPath := filepath.Join(filepath.Dir(comp.HtmlPath), comp.Name+"_gen.go")
 	os.WriteFile(outputPath, []byte(code), 0644)
@@ -137,20 +139,40 @@ func init() {
 	fmt.Println("Generated Registry: src/app/registry_gen.go")
 }
 
-func parseComponentInfo(filePath string) (bool, string) {
+func parseComponentInfo(filePath string) (bool, string, map[string]bool) {
 	fset := token.NewFileSet()
 	node, err := parser.ParseFile(fset, filePath, nil, parser.ParseComments)
 	if err != nil {
-		return false, ""
+		return false, "", nil
 	}
 
 	hasComponent := false
 	selector := ""
+	fields := make(map[string]bool)
 
 	ast.Inspect(node, func(n ast.Node) bool {
 		if typeSpec, ok := n.(*ast.TypeSpec); ok {
 			if typeSpec.Name.Name == "Component" {
 				hasComponent = true
+				if structType, ok := typeSpec.Type.(*ast.StructType); ok {
+					for _, field := range structType.Fields.List {
+						for _, name := range field.Names {
+							fields[name.Name] = true
+						}
+					}
+				}
+			}
+		}
+
+		if funcDecl, ok := n.(*ast.FuncDecl); ok {
+			if funcDecl.Recv != nil {
+				for _, field := range funcDecl.Recv.List {
+					if startExpr, ok := field.Type.(*ast.StarExpr); ok {
+						if ident, ok := startExpr.X.(*ast.Ident); ok && ident.Name == "Component" {
+							fields[funcDecl.Name.Name] = true
+						}
+					}
+				}
 			}
 		}
 
@@ -166,10 +188,11 @@ func parseComponentInfo(filePath string) (bool, string) {
 				}
 			}
 		}
+
 		return true
 	})
 
-	return hasComponent, selector
+	return hasComponent, selector, fields
 }
 
 func generateBootstrapFile() {

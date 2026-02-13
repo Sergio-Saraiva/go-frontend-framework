@@ -21,7 +21,7 @@ var gIfRegex = regexp.MustCompile(`\*gIf=`)
 var gForRegex = regexp.MustCompile(`\*gFor=`)
 var cssSelectorRegex = regexp.MustCompile(`([^{}]+)\{`)
 
-func GenerateFullFile(n Node, packageName string, cssContent string, knownComponents map[string]bool) string {
+func GenerateFullFile(n Node, packageName string, cssContent string, knownComponents map[string]bool, validFields map[string]bool) string {
 	scopeId := fmt.Sprintf("data-c-%s", packageName)
 	scopedCSS := cssSelectorRegex.ReplaceAllStringFunc(cssContent, func(match string) string {
 		selectorPart := strings.TrimSuffix(match, "{")
@@ -41,7 +41,7 @@ func GenerateFullFile(n Node, packageName string, cssContent string, knownCompon
 
 	scopedCSS = strings.ReplaceAll(scopedCSS, "\n", " ")
 	scopedCSS = strings.ReplaceAll(scopedCSS, "\"", "'")
-	body := generateNodeCode(n, "root", "", 0, scopeId, knownComponents)
+	body := generateNodeCode(n, "root", "", 0, scopeId, knownComponents, validFields)
 
 	signalImport := "go-frontend-framework/signal"
 	componentImport := "go-frontend-framework/component"
@@ -99,16 +99,16 @@ func Parse(r io.Reader) (*Node, error) {
 	return &root, nil
 }
 
-func generateNodeCode(n Node, varName string, parentVarName string, id int, scopeId string, knownComponents map[string]bool) string {
+func generateNodeCode(n Node, varName string, parentVarName string, id int, scopeId string, knownComponents map[string]bool, validFields map[string]bool) string {
 	var builder strings.Builder
 
 	for i, attr := range n.Attrs {
 		if attr.Name.Local == "data-g-if" {
-			return generateIfAttributes(attr, n, i, id, parentVarName, scopeId, knownComponents)
+			return generateIfAttributes(attr, n, i, id, parentVarName, scopeId, knownComponents, validFields)
 		}
 
 		if attr.Name.Local == "data-g-for" {
-			return generateForAttribute(attr, n, i, id, parentVarName, scopeId, knownComponents)
+			return generateForAttribute(attr, n, i, id, parentVarName, scopeId, knownComponents, validFields)
 		}
 	}
 
@@ -132,15 +132,14 @@ func generateNodeCode(n Node, varName string, parentVarName string, id int, scop
 
 			if strings.HasPrefix(name, "bind-") {
 				inputName := name[5:]
-				expr := value
-				if len(expr) > 0 && unicode.IsUpper(rune(expr[0])) {
-					expr = "c." + expr
-				}
+				// USE SMART SCOPE
+				scopedValue := smartScope(value, validFields)
 
 				builder.WriteString(fmt.Sprintf(`
-                signal.CreateEffect(func() {
-                    childComp.SetInput("%s", %s)
-                })`, inputName, expr))
+					signal.CreateEffect(func() {
+						childComp.SetInput("%s", %s)
+					})`,
+					inputName, scopedValue))
 			}
 
 			if strings.HasPrefix(name, "on-") {
@@ -173,18 +172,18 @@ func generateNodeCode(n Node, varName string, parentVarName string, id int, scop
 	}
 
 	if !isComponent {
-		generateContentAndInterpolation(n, id, varName, &builder)
-		generateRecursionFunction(n, varName, id, &builder, scopeId, knownComponents)
+		generateContentAndInterpolation(n, id, varName, &builder, validFields)
+		generateRecursionFunction(n, varName, id, &builder, scopeId, knownComponents, validFields)
 	}
 
 	return builder.String()
 }
 
-func generateIfAttributes(attr xml.Attr, n Node, i int, id int, parentVarName string, scopeId string, knownComponents map[string]bool) string {
+func generateIfAttributes(attr xml.Attr, n Node, i int, id int, parentVarName string, scopeId string, knownComponents map[string]bool, validFields map[string]bool) string {
 	condition := attr.Value
 	nodeCopy := n
 	nodeCopy.Attrs = append(n.Attrs[:i], n.Attrs[i+1:]...)
-	innerCode := generateNodeCode(nodeCopy, "innerEl", "", id, scopeId, knownComponents)
+	innerCode := generateNodeCode(nodeCopy, "innerEl", "", id, scopeId, knownComponents, validFields)
 
 	return fmt.Sprintf(`
             // --- *gIf (%s) ---
@@ -213,14 +212,14 @@ func generateIfAttributes(attr xml.Attr, n Node, i int, id int, parentVarName st
             `, condition, id, parentVarName, id, id, condition, id, innerCode, id, parentVarName, id, id, id, id, id)
 }
 
-func generateForAttribute(attr xml.Attr, n Node, i int, id int, parentVarName string, scopeId string, knownComponents map[string]bool) string {
+func generateForAttribute(attr xml.Attr, n Node, i int, id int, parentVarName string, scopeId string, knownComponents map[string]bool, validFields map[string]bool) string {
 	parts := strings.Split(attr.Value, " of ")
 	itemName := parts[0]
 	listName := parts[1]
 
 	nodeCopy := n
 	nodeCopy.Attrs = append(n.Attrs[:i], n.Attrs[i+1:]...)
-	innerCode := generateNodeCode(nodeCopy, "iterEl", "", id, scopeId, knownComponents)
+	innerCode := generateNodeCode(nodeCopy, "iterEl", "", id, scopeId, knownComponents, validFields)
 
 	return fmt.Sprintf(`
             // --- *gFor (%s of %s) ---
@@ -253,18 +252,18 @@ func generateForAttribute(attr xml.Attr, n Node, i int, id int, parentVarName st
 		id, id, parentVarName, id)
 }
 
-func generateRecursionFunction(n Node, varName string, id int, builder *strings.Builder, scopeId string, knownComponents map[string]bool) {
+func generateRecursionFunction(n Node, varName string, id int, builder *strings.Builder, scopeId string, knownComponents map[string]bool, validFields map[string]bool) {
 	for i, child := range n.Children {
 		childVarName := fmt.Sprintf("%s_%d", varName, i)
 
-		childCode := generateNodeCode(child, childVarName, varName, id+i+1, scopeId, knownComponents)
+		childCode := generateNodeCode(child, childVarName, varName, id+i+1, scopeId, knownComponents, validFields)
 		builder.WriteString("{\n")
 		builder.WriteString(childCode)
 		builder.WriteString("}\n")
 	}
 }
 
-func generateContentAndInterpolation(n Node, id int, varName string, builder *strings.Builder) {
+func generateContentAndInterpolation(n Node, id int, varName string, builder *strings.Builder, validFields map[string]bool) {
 	if len(strings.TrimSpace(n.Content)) > 0 {
 		content := strings.TrimSpace(n.Content)
 
@@ -286,17 +285,15 @@ func generateContentAndInterpolation(n Node, id int, varName string, builder *st
                 %s.Call("appendChild", txtPrefix%d)
                 `, id, prefix, varName, id))
 			}
-			scopePrefix := ""
-			if len(expr) > 0 && unicode.IsUpper(rune(expr[0])) {
-				scopePrefix = "c."
-			}
+
+			scopedExpr := smartScope(expr, validFields)
 
 			builder.WriteString(fmt.Sprintf(`
             txtDyn%d := doc.Call("createTextNode", "")
             %s.Call("appendChild", txtDyn%d)
             signal.CreateEffect(func() {
-                txtDyn%d.Set("nodeValue", fmt.Sprintf("%%v", %s%s))
-            })`, id, varName, id, id, scopePrefix, expr))
+                txtDyn%d.Set("nodeValue", fmt.Sprintf("%%v", %s))
+            })`, id, varName, id, id, scopedExpr))
 
 			if len(suffix) > 0 {
 				builder.WriteString(fmt.Sprintf(`
@@ -330,4 +327,29 @@ func generateAttributesCode(n Node, varName string, builder *strings.Builder) {
 			builder.WriteString(fmt.Sprintf(`%s.Call("setAttribute", "%s", "%s")`+"\n", varName, name, val))
 		}
 	}
+}
+
+func smartScope(expression string, validFields map[string]bool) string {
+	expression = strings.TrimSpace(expression)
+	if expression == "" {
+		return ""
+	}
+
+	end := 0
+
+	for i, r := range expression {
+		if !unicode.IsLetter(r) && !unicode.IsDigit(r) && r != '_' {
+			break
+		}
+
+		end = i + 1
+	}
+
+	firstToken := expression[:end]
+
+	if validFields[firstToken] {
+		return "c." + expression
+	}
+
+	return expression
 }
