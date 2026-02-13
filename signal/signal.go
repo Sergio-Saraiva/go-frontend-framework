@@ -1,6 +1,9 @@
 package signal
 
-import "fmt"
+import (
+	"fmt"
+	"strconv"
+)
 
 var effectStack []func()
 var currentEffect *EffectWrapper
@@ -100,6 +103,13 @@ func (s *Signal[T]) SetAny(val any) {
 
 		if i, ok := val.(int); ok {
 			s.Set(any(i).(T))
+			return
+		}
+
+		if str, ok := val.(string); ok {
+			if i, err := strconv.Atoi(str); err == nil {
+				s.Set(any(i).(T))
+			}
 			return
 		}
 

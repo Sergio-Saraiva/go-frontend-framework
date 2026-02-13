@@ -164,6 +164,32 @@ func generateNodeCode(n Node, varName string, parentVarName string, id int, scop
 	} else {
 		builder.WriteString(fmt.Sprintf(`%s := doc.Call("createElement", "%s")`+"\n", varName, tag))
 		builder.WriteString(fmt.Sprintf(`%s.Call("setAttribute", "%s", "")`+"\n", varName, scopeId))
+
+		for _, attr := range n.Attrs {
+			if attr.Name.Local == "bind-value" {
+				signalName := attr.Value
+
+				if validFields[signalName] {
+					signalName = "c." + signalName
+				}
+
+				builder.WriteString(fmt.Sprintf(`
+                signal.CreateEffect(func() {
+                    val := fmt.Sprintf("%%v", %s.Get())
+                    if %s.Get("value").String() != val {
+                        %s.Set("value", val)
+                    }
+                })`+"\n", signalName, varName, varName))
+
+				builder.WriteString(fmt.Sprintf(`
+                %s.Call("addEventListener", "input", js.FuncOf(func(this js.Value, args []js.Value) any {
+                    val := this.Get("value").String()
+                    %s.SetAny(val) 
+                    return nil
+                }))`+"\n", varName, signalName))
+			}
+		}
+
 		generateAttributesCode(n, varName, &builder)
 	}
 
