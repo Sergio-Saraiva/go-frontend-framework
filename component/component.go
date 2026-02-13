@@ -9,6 +9,9 @@ type Interface interface {
 	SetInput(name string, value any)
 	SetEventListener(eventName string, handler func(any))
 	Init(target any)
+
+	OnInit()
+	OnDestroy()
 }
 
 var registry = make(map[string]func() Interface)
@@ -25,6 +28,8 @@ func Create(tagName string) Interface {
 	comp := factory()
 
 	comp.Init(comp)
+
+	comp.OnInit()
 
 	return comp
 }
@@ -44,3 +49,5 @@ func (e *ErrorComponent) Render() js.Value {
 func (e *ErrorComponent) Init(target any)                                   {}
 func (e *ErrorComponent) SetInput(name string, value any)                   {}
 func (e *ErrorComponent) SetEventListener(event string, callback func(any)) {}
+func (e *ErrorComponent) OnInit()                                           {}
+func (e *ErrorComponent) OnDestroy()                                        {}

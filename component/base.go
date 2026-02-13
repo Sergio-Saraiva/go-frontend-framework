@@ -91,3 +91,6 @@ func (bc *BaseComponent) SetEventListener(event string, callback func(any)) {
 	}
 	bc.Listeners[event] = callback
 }
+
+func (bc *BaseComponent) OnInit()    {}
+func (bc *BaseComponent) OnDestroy() {}

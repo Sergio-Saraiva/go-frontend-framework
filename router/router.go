@@ -2,20 +2,17 @@
 
 package router
 
-import "syscall/js"
+import (
+	"fmt"
+	"go-frontend-framework/component"
+	"syscall/js"
+)
 
-type Initializer interface {
-	Init(target any)
-}
-
-type Component interface {
-	Render() js.Value
-}
-
-var routes = make(map[string]func() Component)
+var routes = make(map[string]func() component.Interface)
 var outlet js.Value
+var currentComp component.Interface
 
-func Register(path string, factory func() Component) {
+func Register(path string, factory func() component.Interface) {
 	routes[path] = factory
 }
 
@@ -27,37 +24,53 @@ func Outlet() js.Value {
 }
 
 func Navigate(path string) {
-	js.Global().Get("history").Call("pushState", nil, "", path)
-	renderPath(path)
+	win := js.Global().Get("window")
+	win.Get("location").Set("hash", "#"+path)
 }
 
 func renderPath(path string) {
-	if outlet.IsUndefined() || outlet.IsNull() {
-		return
+	fmt.Println("--- Router: Navigating to", path, "---")
+
+	if currentComp != nil {
+		currentComp.OnDestroy()
 	}
+
 	outlet.Set("innerHTML", "")
 	factory, exists := routes[path]
 	if !exists {
+		outlet.Set("innerText", "404 - Not Found")
 		return
 	}
 
 	comp := factory()
 
-	if initer, ok := comp.(Initializer); ok {
-		initer.Init(comp)
-	}
+	currentComp = comp
+
+	comp.Init(comp)
+	comp.OnInit()
 
 	rootEl := comp.Render()
 	outlet.Call("appendChild", rootEl)
 }
 
 func Start() {
-	currentPath := js.Global().Get("location").Get("pathname").String()
-	renderPath(currentPath)
+	win := js.Global().Get("window")
 
-	js.Global().Get("window").Call("addEventListener", "popstate", js.FuncOf(func(this js.Value, args []js.Value) any {
-		newPath := js.Global().Get("location").Get("pathname").String()
-		renderPath(newPath)
+	cb := js.FuncOf(func(this js.Value, args []js.Value) any {
+		hash := win.Get("location").Get("hash").String()
+		path := "/"
+		if len(hash) > 1 {
+			path = hash[1:]
+		}
+		renderPath(path)
 		return nil
-	}))
+	})
+	win.Call("addEventListener", "hashchange", cb)
+
+	hash := win.Get("location").Get("hash").String()
+	path := "/"
+	if len(hash) > 1 {
+		path = hash[1:]
+	}
+	renderPath(path)
 }

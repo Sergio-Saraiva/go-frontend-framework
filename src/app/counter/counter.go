@@ -5,6 +5,7 @@ package counter
 import (
 	"fmt"
 	"go-frontend-framework/component"
+	"go-frontend-framework/router"
 	"go-frontend-framework/signal"
 )
 
@@ -32,4 +33,8 @@ func (c *Component) OnReset(payload any) {
 	// Reset the state to 0.
 	// This will automatically propagate down to the child via [Status]!
 	c.Count.Set(0)
+}
+
+func (c *Component) GoToTimer() {
+	router.Navigate("/timer")
 }
