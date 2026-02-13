@@ -1,13 +1,16 @@
 .footer-box {
     margin-top: 20px;
-    padding: 10px;
-    background-color: #333;
+    padding: 15px;
+    border: 2px dashed #4CAF50; /* Green border */
+    background-color: #222;
     color: white;
     text-align: center;
-    border-radius: 4px;
+    border-radius: 8px;
 }
-button {
-    background: #555;
-    border: 1px solid #777;
+.footer-box button {
+    background-color: #d9534f; /* Red button */
     color: white;
+    border: none;
+    padding: 5px 10px;
+    cursor: pointer;
 }

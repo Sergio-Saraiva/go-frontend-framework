@@ -4,38 +4,32 @@ package counter
 
 import (
 	"fmt"
-	"go-frontend-framework/router"
+	"go-frontend-framework/component"
 	"go-frontend-framework/signal"
 )
 
+// Default selector "counter" (derived from folder name)
 type Component struct {
+	component.BaseComponent
+
 	Count *signal.Signal[int]
-	Show  *signal.Signal[bool]
-	Items *signal.Signal[[]string]
 }
 
 func New() *Component {
 	return &Component{
 		Count: signal.New(0),
-		Show:  signal.New(true),
-		Items: signal.New([]string{"Apple", "Banana", "Cherry"}),
 	}
-}
-
-func (c *Component) GoToAbout() {
-	router.Navigate("/about")
 }
 
 func (c *Component) Increment() {
 	c.Count.Set(c.Count.Get() + 1)
 }
 
-func (c *Component) Toggle() {
-	c.Show.Set(!c.Show.Get())
-}
+// OnReset is the Event Handler for the child's (reset) event.
+func (c *Component) OnReset(payload any) {
+	fmt.Println("Parent received reset event:", payload)
 
-func (c *Component) AddItem() {
-	currentList := c.Items.Get()
-	newItem := fmt.Sprintf("Fruit %d", len(currentList)+1)
-	c.Items.Set(append(currentList, newItem))
+	// Reset the state to 0.
+	// This will automatically propagate down to the child via [Status]!
+	c.Count.Set(0)
 }

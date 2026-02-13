@@ -4,6 +4,10 @@ package router
 
 import "syscall/js"
 
+type Initializer interface {
+	Init(target any)
+}
+
 type Component interface {
 	Render() js.Value
 }
@@ -34,16 +38,15 @@ func renderPath(path string) {
 	outlet.Set("innerHTML", "")
 	factory, exists := routes[path]
 	if !exists {
-		if path != "/" {
-			renderPath("/")
-		} else {
-			outlet.Set("innerText", "404 Not Found")
-		}
-
 		return
 	}
 
 	comp := factory()
+
+	if initer, ok := comp.(Initializer); ok {
+		initer.Init(comp)
+	}
+
 	rootEl := comp.Render()
 	outlet.Call("appendChild", rootEl)
 }

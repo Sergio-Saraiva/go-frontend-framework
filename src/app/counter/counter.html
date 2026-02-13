@@ -1,14 +1,12 @@
 <div class="box">
-    <h3>My Shopping List</h3>
+    <h1>Parent Counter</h1>
+    <p>Current Value: {{ Count.Get() }}</p>
     
-    <button (click)="AddItem()">+ Add Fruit</button>
+    <button (click)="Increment()">Increment (+)</button>
 
-    <ul>
-        <li *gFor="item of Items">
-            <span>I want: {{ item }}</span>
-        </li>
-    </ul>
 
-    <p>Total items: {{ Items.Get() }}</p> 
-    <button (click)="GoToAbout()">Go to About Page</button>
+    <site-footer 
+        bind-Status="Count.Get()" 
+        on-reset="OnReset($event)">
+    </site-footer>
 </div>

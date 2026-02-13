@@ -121,10 +121,47 @@ func generateNodeCode(n Node, varName string, parentVarName string, id int, scop
         // --- Child Component: <%s> ---
         var %s js.Value
         {
+            // 1. Create Instance
             childComp := component.Create("%s")
+            
+            // 2. Handle Inputs (Attributes starting with [ ])
+            `, tag, varName, tag))
+		for _, attr := range n.Attrs {
+			name := attr.Name.Local
+			value := attr.Value
+
+			if strings.HasPrefix(name, "bind-") {
+				inputName := name[5:]
+				expr := value
+				if len(expr) > 0 && unicode.IsUpper(rune(expr[0])) {
+					expr = "c." + expr
+				}
+
+				builder.WriteString(fmt.Sprintf(`
+                signal.CreateEffect(func() {
+                    childComp.SetInput("%s", %s)
+                })`, inputName, expr))
+			}
+
+			if strings.HasPrefix(name, "on-") {
+				eventName := name[3:]
+				paramCall := value
+				if strings.Contains(value, "$event") {
+					paramCall = strings.Replace(value, "$event", "payload", 1)
+				}
+
+				builder.WriteString(fmt.Sprintf(`
+                childComp.SetEventListener("%s", func(payload any) {
+                    c.%s 
+                })`, eventName, paramCall))
+			}
+		}
+
+		builder.WriteString(fmt.Sprintf(`
+            // 3. Render
             %s = childComp.Render()
         }
-        `, tag, varName, tag, varName))
+        `, varName))
 	} else {
 		builder.WriteString(fmt.Sprintf(`%s := doc.Call("createElement", "%s")`+"\n", varName, tag))
 		builder.WriteString(fmt.Sprintf(`%s.Call("setAttribute", "%s", "")`+"\n", varName, scopeId))

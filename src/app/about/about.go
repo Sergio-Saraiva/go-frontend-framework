@@ -2,9 +2,14 @@
 
 package about
 
-import "go-frontend-framework/router"
+import (
+	"go-frontend-framework/component"
+	"go-frontend-framework/router"
+)
 
-type Component struct{}
+type Component struct {
+	component.BaseComponent
+}
 
 func New() *Component {
 	return &Component{}

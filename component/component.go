@@ -6,6 +6,9 @@ import "syscall/js"
 
 type Interface interface {
 	Render() js.Value
+	SetInput(name string, value any)
+	SetEventListener(eventName string, handler func(any))
+	Init(target any)
 }
 
 var registry = make(map[string]func() Interface)
@@ -19,7 +22,11 @@ func Create(tagName string) Interface {
 	if !ok {
 		return &ErrorComponent{Tag: tagName}
 	}
-	return factory()
+	comp := factory()
+
+	comp.Init(comp)
+
+	return comp
 }
 
 type ErrorComponent struct {
@@ -33,3 +40,7 @@ func (e *ErrorComponent) Render() js.Value {
 	el.Get("style").Set("color", "red")
 	return el
 }
+
+func (e *ErrorComponent) Init(target any)                                   {}
+func (e *ErrorComponent) SetInput(name string, value any)                   {}
+func (e *ErrorComponent) SetEventListener(event string, callback func(any)) {}
