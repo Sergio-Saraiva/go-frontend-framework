@@ -1,13 +1,6 @@
 <div class="box">
-    <h1>Parent Counter</h1>
-    <p>Current Value: {{ Count.Get() }}</p>
+    <h3>Welcome, {{ User.Name.Get() }}!</h3>
     
-    <button (click)="Increment()">Increment (+)</button>
-
-    <input type="number" bind-value="Count" />
-<button (click)="GoToTimer()">Go to Timer Page</button>
-    <site-footer 
-        bind-Status="Count.Get()" 
-        on-reset="OnReset($event)">
-    </site-footer>
+    <p>Counter: {{ Count.Get() }}</p>
+    <app-login></app-login>
 </div>

@@ -1,7 +1,10 @@
+//go:build js && wasm
+
 package component
 
 import (
 	"fmt"
+	"go-frontend-framework/di"
 	"go-frontend-framework/signal"
 	"reflect"
 )
@@ -14,6 +17,7 @@ type BaseComponent struct {
 
 func (bc *BaseComponent) Init(target interface{}) {
 	bc.target = target
+	di.Inject(target)
 }
 
 func (bc *BaseComponent) SetInput(name string, value any) {

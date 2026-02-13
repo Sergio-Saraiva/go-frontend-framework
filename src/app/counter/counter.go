@@ -7,6 +7,7 @@ import (
 	"go-frontend-framework/component"
 	"go-frontend-framework/router"
 	"go-frontend-framework/signal"
+	"go-frontend-framework/src/services"
 )
 
 // Default selector "counter" (derived from folder name)
@@ -14,6 +15,8 @@ type Component struct {
 	component.BaseComponent
 
 	Count *signal.Signal[int]
+
+	User *services.UserService `inject:"true"`
 }
 
 func New() *Component {
