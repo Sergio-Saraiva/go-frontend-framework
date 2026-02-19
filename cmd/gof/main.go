@@ -138,7 +138,6 @@ func startDevServer() {
 func scaffoldProject(name string) {
 	fmt.Printf("Scaffolding new project: %s...\n", name)
 
-	// 1. Create Directories
 	dirs := []string{
 		name,
 		filepath.Join(name, "src", "app", "home"),
@@ -149,13 +148,12 @@ func scaffoldProject(name string) {
 		}
 	}
 
-	// 2. Define Templates
 	files := map[string]string{
 		filepath.Join(name, "go.mod"): fmt.Sprintf(`module %s
 
-go 1.21
+go 1.25
 
-require github.com/Sergio-Saraiva/go-frontend-framework v0.1.5
+require github.com/Sergio-Saraiva/go-frontend-framework v0.1.6
 `, name),
 
 		filepath.Join(name, "index.html"): `<!DOCTYPE html>
@@ -185,7 +183,6 @@ package main
 import (
 	"syscall/js"
 	"github.com/Sergio-Saraiva/go-frontend-framework/router"
-	"github.com/Sergio-Saraiva/go-frontend-framework/debug"
 	
 	home_pkg "` + name + `/src/app/home"
 )
@@ -199,7 +196,7 @@ func main() {
 
 	// Mount the router to the DOM
 	root := router.Outlet()
-	syscall.JS.Global().Get("document").Get("body").Call("appendChild", root)
+	js.Global().Get("document").Get("body").Call("appendChild", root)
 
 	// Start listening for URL changes
 	router.Start()
@@ -216,7 +213,7 @@ import (
 )
 
 type Component struct {
-	component.Base
+	component.BaseComponent
 	Title *signal.Signal[string]
 }
 
@@ -224,7 +221,7 @@ func New() component.Interface {
 	c := &Component{
 		Title: signal.New("Welcome to Go Frontend! 🐹"),
 	}
-	c.Base.Init(c)
+	c.BaseComponent.Init(c)
 	return c
 }
 `,
@@ -290,7 +287,7 @@ func copyWasmExec(projectDir string) {
 	urlsToTry := []string{
 		fmt.Sprintf("https://raw.githubusercontent.com/golang/go/%s/misc/wasm/wasm_exec.js", goVer),
 		fmt.Sprintf("https://raw.githubusercontent.com/golang/go/%s/misc/wasm/wasm_exec.js", strings.TrimSuffix(goVer, ".0")),
-		"https://raw.githubusercontent.com/golang/go/master/misc/wasm/wasm_exec.js", // Ultimate fallback
+		"https://raw.githubusercontent.com/golang/go/master/misc/wasm/wasm_exec.js",
 	}
 
 	var resp *http.Response
