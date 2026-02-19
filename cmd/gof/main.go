@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"os"
@@ -105,7 +106,7 @@ func startDevServer() {
 				if strings.HasSuffix(fileName, "_gen.go") ||
 					strings.HasSuffix(fileName, ".wasm") ||
 					strings.HasPrefix(filepath.Base(fileName), ".") {
-					continue // Skip this event entirely
+					continue
 				}
 				if event.Op&fsnotify.Write == fsnotify.Write {
 					debounce.Reset(100 * time.Millisecond)
@@ -180,8 +181,8 @@ require github.com/yourusername/github.com/Sergio-Saraiva/go-frontend-framework 
 package main
 
 import (
-	"github.com/Sergio-Saraiva/go-frontend-framework/router" // ⚠️ Update to your repo URL
-	"github.com/Sergio-Saraiva/go-frontend-framework/debug"  // ⚠️ Update to your repo URL
+	"github.com/Sergio-Saraiva/go-frontend-framework/router" 
+	"github.com/Sergio-Saraiva/go-frontend-framework/debug"
 	
 	home_pkg "` + name + `/src/app/home"
 )
@@ -209,8 +210,8 @@ func main() {
 package home
 
 import (
-	"github.com/Sergio-Saraiva/go-frontend-framework/component" // ⚠️ Update to your repo URL
-	"github.com/Sergio-Saraiva/go-frontend-framework/signal"    // ⚠️ Update to your repo URL
+	"github.com/Sergio-Saraiva/go-frontend-framework/component" 
+	"github.com/Sergio-Saraiva/go-frontend-framework/signal"
 )
 
 type Component struct {
@@ -266,21 +267,41 @@ func New() component.Interface {
 
 func copyWasmExec(projectDir string) {
 	out, err := exec.Command("go", "env", "GOROOT").Output()
-	if err != nil {
-		log.Fatalf("\nFailed to find GOROOT. Is Go installed? %v", err)
+	if err == nil {
+		goroot := strings.TrimSpace(string(out))
+		localPath := filepath.Join(goroot, "misc", "wasm", "wasm_exec.js")
+
+		if input, err := os.ReadFile(localPath); err == nil {
+			destPath := filepath.Join(projectDir, "wasm_exec.js")
+			os.WriteFile(destPath, input, 0644)
+			fmt.Println("(Copied from GOROOT)")
+			return
+		}
 	}
 
-	goroot := strings.TrimSpace(string(out))
-	wasmJsPath := filepath.Join(goroot, "misc", "wasm", "wasm_exec.js")
-
-	input, err := os.ReadFile(wasmJsPath)
+	fmt.Print("(Downloading from GitHub...) ")
+	verOut, err := exec.Command("go", "env", "GOVERSION").Output()
 	if err != nil {
-		log.Fatalf("\nFailed to read wasm_exec.js from %s: %v", wasmJsPath, err)
+		log.Fatalf("\nFailed to determine Go version: %v", err)
 	}
+	goVer := strings.TrimSpace(string(verOut))
+
+	url := fmt.Sprintf("https://raw.githubusercontent.com/golang/go/%s/misc/wasm/wasm_exec.js", goVer)
+	resp, err := http.Get(url)
+	if err != nil || resp.StatusCode != http.StatusOK {
+		log.Fatalf("\nFailed to download wasm_exec.js for %s. HTTP Status: %d", goVer, resp.StatusCode)
+	}
+	defer resp.Body.Close()
 
 	destPath := filepath.Join(projectDir, "wasm_exec.js")
-	if err := os.WriteFile(destPath, input, 0644); err != nil {
-		log.Fatalf("\nFailed to write wasm_exec.js to project: %v", err)
+	outf, err := os.Create(destPath)
+	if err != nil {
+		log.Fatalf("\nFailed to create wasm_exec.js: %v", err)
 	}
-	fmt.Println("✅")
+	defer outf.Close()
+
+	_, err = io.Copy(outf, resp.Body)
+	if err != nil {
+		log.Fatalf("\nFailed to write wasm_exec.js: %v", err)
+	}
 }
