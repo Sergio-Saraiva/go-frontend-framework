@@ -200,8 +200,8 @@ func generateBootstrapFile() {
 package main
 
 import (
-	"github.com/Sergio-Saraiva/go-frontend-framework/component"
-	app_components "%s/src/app" 
+	_ "github.com/Sergio-Saraiva/go-frontend-framework/component"
+	_ "%s/src/app" 
 )
 `, moduleName)
 

@@ -153,7 +153,7 @@ func scaffoldProject(name string) {
 
 go 1.25
 
-require github.com/Sergio-Saraiva/go-frontend-framework v0.1.6
+require github.com/Sergio-Saraiva/go-frontend-framework v0.1.7
 `, name),
 
 		filepath.Join(name, "index.html"): `<!DOCTYPE html>
