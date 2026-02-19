@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Sergio-Saraiva/go-frontend-framework/compiler"
 	"github.com/fsnotify/fsnotify"
 )
 
@@ -55,20 +56,22 @@ func printHelp() {
 
 func runFullBuild() error {
 	fmt.Print("Compiling Templates... ")
-	cmd := exec.Command("go", "run", CompilerPath)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	if err := cmd.Run(); err != nil {
+
+	if err := compiler.Run(); err != nil {
+		fmt.Printf("\nCompiler Error: %v\n", err)
 		return err
 	}
 
 	fmt.Print("Building WASM... ")
-	buildCmd := exec.Command("sh", "-c", "GOOS=js GOARCH=wasm "+BuildCmd)
+
+	buildCmd := exec.Command("sh", "-c", "GOOS=js GOARCH=wasm go build -o main.wasm .")
 	buildCmd.Stdout = os.Stdout
 	buildCmd.Stderr = os.Stderr
 	if err := buildCmd.Run(); err != nil {
+		fmt.Printf("\nBuild Error: %v\n", err)
 		return err
 	}
+	fmt.Println("✅")
 	return nil
 }
 
@@ -152,8 +155,7 @@ func scaffoldProject(name string) {
 
 go 1.21
 
-// ⚠️ UPDATE THIS to your actual framework repo URL once published
-require github.com/yourusername/github.com/Sergio-Saraiva/go-frontend-framework v0.1.0
+require github.com/yourusername/github.com/Sergio-Saraiva/go-frontend-framework v0.1.3
 `, name),
 
 		filepath.Join(name, "index.html"): `<!DOCTYPE html>
@@ -286,10 +288,26 @@ func copyWasmExec(projectDir string) {
 	}
 	goVer := strings.TrimSpace(string(verOut))
 
-	url := fmt.Sprintf("https://raw.githubusercontent.com/golang/go/%s/misc/wasm/wasm_exec.js", goVer)
-	resp, err := http.Get(url)
-	if err != nil || resp.StatusCode != http.StatusOK {
-		log.Fatalf("\nFailed to download wasm_exec.js for %s. HTTP Status: %d", goVer, resp.StatusCode)
+	urlsToTry := []string{
+		fmt.Sprintf("https://raw.githubusercontent.com/golang/go/%s/misc/wasm/wasm_exec.js", goVer),
+		fmt.Sprintf("https://raw.githubusercontent.com/golang/go/%s/misc/wasm/wasm_exec.js", strings.TrimSuffix(goVer, ".0")),
+		"https://raw.githubusercontent.com/golang/go/master/misc/wasm/wasm_exec.js", // Ultimate fallback
+	}
+
+	var resp *http.Response
+	for _, u := range urlsToTry {
+		r, err := http.Get(u)
+		if err == nil && r.StatusCode == http.StatusOK {
+			resp = r
+			break
+		}
+		if r != nil {
+			r.Body.Close()
+		}
+	}
+
+	if resp == nil {
+		log.Fatalf("\nFailed to download wasm_exec.js. All fallback URLs returned 404.")
 	}
 	defer resp.Body.Close()
 
@@ -300,8 +318,7 @@ func copyWasmExec(projectDir string) {
 	}
 	defer outf.Close()
 
-	_, err = io.Copy(outf, resp.Body)
-	if err != nil {
+	if _, err = io.Copy(outf, resp.Body); err != nil {
 		log.Fatalf("\nFailed to write wasm_exec.js: %v", err)
 	}
 }

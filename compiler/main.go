@@ -1,4 +1,4 @@
-package main
+package compiler
 
 import (
 	"fmt"
@@ -8,8 +8,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-
-	"github.com/Sergio-Saraiva/go-frontend-framework/compiler"
 )
 
 type FoundComponent struct {
@@ -20,7 +18,7 @@ type FoundComponent struct {
 	Fields     map[string]bool
 }
 
-func main() {
+func Run() error {
 	rootDir := "src/app"
 	fmt.Println("Starting Smart Auto-Discovery...")
 
@@ -53,6 +51,7 @@ func main() {
 	generateBootstrapFile()
 
 	fmt.Println("Discovery & Compilation Complete.")
+	return nil
 }
 
 func analyzeComponent(htmlPath string) *FoundComponent {
@@ -96,13 +95,13 @@ func compileComponent(comp FoundComponent, knownComponents map[string]bool) {
 		cssContent = string(cssBytes)
 	}
 
-	root, err := compiler.Parse(strings.NewReader(string(htmlContent)))
+	root, err := Parse(strings.NewReader(string(htmlContent)))
 	if err != nil {
 		fmt.Printf("Error parsing %s: %v\n", comp.HtmlPath, err)
 		return
 	}
 
-	code := compiler.GenerateFullFile(*root, comp.Name, cssContent, knownComponents, comp.Fields)
+	code := GenerateFullFile(*root, comp.Name, cssContent, knownComponents, comp.Fields)
 
 	outputPath := filepath.Join(filepath.Dir(comp.HtmlPath), comp.Name+"_gen.go")
 	os.WriteFile(outputPath, []byte(code), 0644)
