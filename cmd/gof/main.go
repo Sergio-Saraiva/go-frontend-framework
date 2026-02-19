@@ -153,7 +153,7 @@ func scaffoldProject(name string) {
 
 go 1.25
 
-require github.com/Sergio-Saraiva/go-frontend-framework v0.1.7
+require github.com/Sergio-Saraiva/go-frontend-framework v0.1.8
 `, name),
 
 		filepath.Join(name, "index.html"): `<!DOCTYPE html>
@@ -264,30 +264,43 @@ func New() component.Interface {
 }
 
 func copyWasmExec(projectDir string) {
+	internalPaths := []string{
+		filepath.Join("lib", "wasm", "wasm_exec.js"),
+		filepath.Join("misc", "wasm", "wasm_exec.js"),
+	}
+
 	out, err := exec.Command("go", "env", "GOROOT").Output()
 	if err == nil {
 		goroot := strings.TrimSpace(string(out))
-		localPath := filepath.Join(goroot, "misc", "wasm", "wasm_exec.js")
 
-		if input, err := os.ReadFile(localPath); err == nil {
-			destPath := filepath.Join(projectDir, "wasm_exec.js")
-			os.WriteFile(destPath, input, 0644)
-			fmt.Println("(Copied from GOROOT)")
-			return
+		for _, internalPath := range internalPaths {
+			localPath := filepath.Join(goroot, internalPath)
+			if input, err := os.ReadFile(localPath); err == nil {
+				destPath := filepath.Join(projectDir, "wasm_exec.js")
+				os.WriteFile(destPath, input, 0644)
+				fmt.Println("✅ (Copied from local GOROOT)")
+				return
+			}
 		}
 	}
 
 	fmt.Print("(Downloading from GitHub...) ")
 	verOut, err := exec.Command("go", "env", "GOVERSION").Output()
 	if err != nil {
-		log.Fatalf("\nFailed to determine Go version: %v", err)
+		log.Fatalf("\n❌ Failed to determine Go version: %v", err)
 	}
 	goVer := strings.TrimSpace(string(verOut))
 
-	urlsToTry := []string{
-		fmt.Sprintf("https://raw.githubusercontent.com/golang/go/%s/misc/wasm/wasm_exec.js", goVer),
-		fmt.Sprintf("https://raw.githubusercontent.com/golang/go/%s/misc/wasm/wasm_exec.js", strings.TrimSuffix(goVer, ".0")),
-		"https://raw.githubusercontent.com/golang/go/master/misc/wasm/wasm_exec.js",
+	versions := []string{
+		goVer,
+		strings.TrimSuffix(goVer, ".0"),
+		"master",
+	}
+
+	var urlsToTry []string
+	for _, v := range versions {
+		urlsToTry = append(urlsToTry, fmt.Sprintf("https://raw.githubusercontent.com/golang/go/%s/lib/wasm/wasm_exec.js", v))
+		urlsToTry = append(urlsToTry, fmt.Sprintf("https://raw.githubusercontent.com/golang/go/%s/misc/wasm/wasm_exec.js", v))
 	}
 
 	var resp *http.Response
@@ -315,6 +328,6 @@ func copyWasmExec(projectDir string) {
 	defer outf.Close()
 
 	if _, err = io.Copy(outf, resp.Body); err != nil {
-		log.Fatalf("\nFailed to write wasm_exec.js: %v", err)
+		log.Fatalf("\n Failed to write wasm_exec.js: %v", err)
 	}
 }
