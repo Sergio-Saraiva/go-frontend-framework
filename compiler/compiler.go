@@ -73,8 +73,8 @@ func analyzeComponent(htmlPath string) *FoundComponent {
 		tagName = customSelector
 	}
 
-	moduleName := "github.com/Sergio-Saraiva/go-frontend-framework"
-	importPath := fmt.Sprintf("%s/%s", moduleName, dir)
+	moduleName := getModuleName()
+	importPath := moduleName + "/src/app/" + name
 
 	return &FoundComponent{
 		Name:       name,
@@ -215,4 +215,19 @@ import (
 	} else {
 		fmt.Println("Generated Bootstrap: bootstrap_gen.go")
 	}
+}
+
+func getModuleName() string {
+	data, err := os.ReadFile("go.mod")
+	if err != nil {
+		return "app" // Fallback
+	}
+
+	lines := strings.Split(string(data), "\n")
+	for _, line := range lines {
+		if strings.HasPrefix(line, "module ") {
+			return strings.TrimSpace(strings.TrimPrefix(line, "module "))
+		}
+	}
+	return "app"
 }

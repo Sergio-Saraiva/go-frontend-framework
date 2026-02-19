@@ -155,7 +155,7 @@ func scaffoldProject(name string) {
 
 go 1.21
 
-require github.com/yourusername/github.com/Sergio-Saraiva/go-frontend-framework v0.1.3
+require github.com/Sergio-Saraiva/go-frontend-framework v0.1.4
 `, name),
 
 		filepath.Join(name, "index.html"): `<!DOCTYPE html>
@@ -183,15 +183,14 @@ require github.com/yourusername/github.com/Sergio-Saraiva/go-frontend-framework 
 package main
 
 import (
-	"github.com/Sergio-Saraiva/go-frontend-framework/router" 
+	"syscall/js"
+	"github.com/Sergio-Saraiva/go-frontend-framework/router"
 	"github.com/Sergio-Saraiva/go-frontend-framework/debug"
 	
 	home_pkg "` + name + `/src/app/home"
 )
 
 func main() {
-	defer debug.MountGlobalErrorHandler()
-
 	// Keep WASM alive
 	c := make(chan struct{}, 0)
 
