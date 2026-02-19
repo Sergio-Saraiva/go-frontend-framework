@@ -53,7 +53,7 @@ import (
 )
 
 type Component struct {
-	component.Base
+	component.BaseComponent
 	
 	// Reactive State
 	Title *signal.Signal[string]
