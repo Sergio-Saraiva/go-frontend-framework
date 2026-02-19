@@ -1,6 +1,6 @@
 package services
 
-import "go-frontend-framework/signal"
+import "github.com/Sergio-Saraiva/go-frontend-framework/signal"
 
 type UserService struct {
 	Name       *signal.Signal[string]

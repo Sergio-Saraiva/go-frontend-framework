@@ -4,8 +4,9 @@ package router
 
 import (
 	"fmt"
-	"go-frontend-framework/component"
 	"syscall/js"
+
+	"github.com/Sergio-Saraiva/go-frontend-framework/component"
 )
 
 var routes = make(map[string]func() component.Interface)

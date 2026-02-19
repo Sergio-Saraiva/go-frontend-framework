@@ -4,10 +4,11 @@ package timer
 
 import (
 	"fmt"
-	"go-frontend-framework/component"
-	"go-frontend-framework/router"
-	"go-frontend-framework/signal"
 	"time"
+
+	"github.com/Sergio-Saraiva/go-frontend-framework/component"
+	"github.com/Sergio-Saraiva/go-frontend-framework/router"
+	"github.com/Sergio-Saraiva/go-frontend-framework/signal"
 )
 
 type Component struct {

@@ -1,0 +1,286 @@
+package main
+
+import (
+	"fmt"
+	"log"
+	"net/http"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"strings"
+	"time"
+
+	"github.com/fsnotify/fsnotify"
+)
+
+const (
+	Port         = "8080"
+	BuildCmd     = "go build -o main.wasm ."
+	CompilerPath = "cmd/compiler/main.go"
+)
+
+func main() {
+	if len(os.Args) < 2 {
+		printHelp()
+		return
+	}
+
+	switch os.Args[1] {
+	case "build":
+		runFullBuild()
+	case "serve":
+		startDevServer()
+	case "generate":
+		fmt.Println("TODO: Component generation")
+	case "new":
+		if len(os.Args) < 3 {
+			fmt.Println("Error: Missing project name.")
+			fmt.Println("Usage: gof new <project-name>")
+			return
+		}
+		scaffoldProject(os.Args[2])
+	default:
+		printHelp()
+	}
+}
+
+func printHelp() {
+	fmt.Println("Go Frontend CLI (gof)")
+	fmt.Println("  new <name> Create a new project")
+	fmt.Println("  serve    Start dev server with live reload")
+	fmt.Println("  build    Compile project to WASM")
+	fmt.Println("  generate Generate components")
+}
+
+func runFullBuild() error {
+	fmt.Print("Compiling Templates... ")
+	cmd := exec.Command("go", "run", CompilerPath)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	if err := cmd.Run(); err != nil {
+		return err
+	}
+
+	fmt.Print("Building WASM... ")
+	buildCmd := exec.Command("sh", "-c", "GOOS=js GOARCH=wasm "+BuildCmd)
+	buildCmd.Stdout = os.Stdout
+	buildCmd.Stderr = os.Stderr
+	if err := buildCmd.Run(); err != nil {
+		return err
+	}
+	return nil
+}
+
+func startDevServer() {
+	if err := runFullBuild(); err != nil {
+		fmt.Println("Build failed, but starting server anyway...")
+	}
+
+	watcher, err := fsnotify.NewWatcher()
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer watcher.Close()
+
+	if err := filepath.Walk("./src", func(path string, info os.FileInfo, err error) error {
+		if info.IsDir() {
+			return watcher.Add(path)
+		}
+		return nil
+	}); err != nil {
+		log.Fatal(err)
+	}
+
+	go func() {
+		debounce := time.NewTimer(100 * time.Millisecond)
+		debounce.Stop()
+
+		for {
+			select {
+			case event, ok := <-watcher.Events:
+				if !ok {
+					return
+				}
+				fileName := event.Name
+				if strings.HasSuffix(fileName, "_gen.go") ||
+					strings.HasSuffix(fileName, ".wasm") ||
+					strings.HasPrefix(filepath.Base(fileName), ".") {
+					continue // Skip this event entirely
+				}
+				if event.Op&fsnotify.Write == fsnotify.Write {
+					debounce.Reset(100 * time.Millisecond)
+				}
+			case <-debounce.C:
+				fmt.Println("File changed detected. Rebuilding...")
+				runFullBuild()
+				fmt.Println("waiting for changes...")
+			case err, ok := <-watcher.Errors:
+				if !ok {
+					return
+				}
+				log.Println("error:", err)
+			}
+		}
+	}()
+
+	// 3. Start HTTP Server
+	fs := http.FileServer(http.Dir("."))
+	http.Handle("/", fs)
+
+	fmt.Printf("Server running at http://localhost:%s\n", Port)
+	log.Fatal(http.ListenAndServe(":"+Port, nil))
+}
+
+func scaffoldProject(name string) {
+	fmt.Printf("Scaffolding new project: %s...\n", name)
+
+	// 1. Create Directories
+	dirs := []string{
+		name,
+		filepath.Join(name, "src", "app", "home"),
+	}
+	for _, dir := range dirs {
+		if err := os.MkdirAll(dir, 0755); err != nil {
+			log.Fatalf("Failed to create directory %s: %v", dir, err)
+		}
+	}
+
+	// 2. Define Templates
+	files := map[string]string{
+		filepath.Join(name, "go.mod"): fmt.Sprintf(`module %s
+
+go 1.21
+
+// ⚠️ UPDATE THIS to your actual framework repo URL once published
+require github.com/yourusername/github.com/Sergio-Saraiva/go-frontend-framework v0.1.0
+`, name),
+
+		filepath.Join(name, "index.html"): `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Go Frontend App</title>
+    <script src="wasm_exec.js"></script>
+    <script>
+        const go = new Go();
+        WebAssembly.instantiateStreaming(fetch("main.wasm"), go.importObject).then((result) => {
+            go.run(result.instance);
+        });
+    </script>
+    <style>
+        body { font-family: sans-serif; margin: 0; padding: 20px; }
+    </style>
+</head>
+<body>
+    </body>
+</html>`,
+
+		filepath.Join(name, "main.go"): `//go:build js && wasm
+package main
+
+import (
+	"github.com/Sergio-Saraiva/go-frontend-framework/router" // ⚠️ Update to your repo URL
+	"github.com/Sergio-Saraiva/go-frontend-framework/debug"  // ⚠️ Update to your repo URL
+	
+	home_pkg "` + name + `/src/app/home"
+)
+
+func main() {
+	defer debug.MountGlobalErrorHandler()
+
+	// Keep WASM alive
+	c := make(chan struct{}, 0)
+
+	// Register Routes
+	router.Register("/", home_pkg.New)
+
+	// Mount the router to the DOM
+	root := router.Outlet()
+	syscall.JS.Global().Get("document").Get("body").Call("appendChild", root)
+
+	// Start listening for URL changes
+	router.Start()
+
+	<-c
+}`,
+
+		filepath.Join(name, "src", "app", "home", "home.go"): `//go:build js && wasm
+package home
+
+import (
+	"github.com/Sergio-Saraiva/go-frontend-framework/component" // ⚠️ Update to your repo URL
+	"github.com/Sergio-Saraiva/go-frontend-framework/signal"    // ⚠️ Update to your repo URL
+)
+
+type Component struct {
+	component.Base
+	Title *signal.Signal[string]
+}
+
+func New() component.Interface {
+	c := &Component{
+		Title: signal.New("Welcome to Go Frontend! 🐹"),
+	}
+	c.Base.Init(c)
+	return c
+}
+`,
+
+		filepath.Join(name, "src", "app", "home", "home.html"): `<div class="hero">
+    <h1>{{ Title.Get() }}</h1>
+    <p>Your Go WebAssembly application is running.</p>
+    <input type="text" bind-value="Title" placeholder="Edit title..." />
+</div>
+
+<style>
+    .hero {
+        text-align: center;
+        padding: 50px;
+        background: #f4f4f9;
+        border-radius: 8px;
+    }
+    input {
+        padding: 10px;
+        font-size: 16px;
+        margin-top: 20px;
+    }
+</style>`,
+	}
+
+	for path, content := range files {
+		if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+			log.Fatalf("Failed to write file %s: %v", path, err)
+		}
+	}
+
+	fmt.Print("Fetching wasm_exec.js... ")
+	copyWasmExec(name)
+
+	fmt.Printf("\nProject '%s' created successfully!\n\n", name)
+	fmt.Printf("Next steps:\n")
+	fmt.Printf("  cd %s\n", name)
+	fmt.Printf("  go mod tidy\n")
+	fmt.Printf("  gof serve\n")
+}
+
+func copyWasmExec(projectDir string) {
+	out, err := exec.Command("go", "env", "GOROOT").Output()
+	if err != nil {
+		log.Fatalf("\nFailed to find GOROOT. Is Go installed? %v", err)
+	}
+
+	goroot := strings.TrimSpace(string(out))
+	wasmJsPath := filepath.Join(goroot, "misc", "wasm", "wasm_exec.js")
+
+	input, err := os.ReadFile(wasmJsPath)
+	if err != nil {
+		log.Fatalf("\nFailed to read wasm_exec.js from %s: %v", wasmJsPath, err)
+	}
+
+	destPath := filepath.Join(projectDir, "wasm_exec.js")
+	if err := os.WriteFile(destPath, input, 0644); err != nil {
+		log.Fatalf("\nFailed to write wasm_exec.js to project: %v", err)
+	}
+	fmt.Println("✅")
+}

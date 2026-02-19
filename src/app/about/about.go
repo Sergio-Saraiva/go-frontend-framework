@@ -3,8 +3,8 @@
 package about
 
 import (
-	"go-frontend-framework/component"
-	"go-frontend-framework/router"
+	"github.com/Sergio-Saraiva/go-frontend-framework/component"
+	"github.com/Sergio-Saraiva/go-frontend-framework/router"
 )
 
 type Component struct {

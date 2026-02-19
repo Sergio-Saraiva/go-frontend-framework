@@ -4,8 +4,9 @@ package footer
 
 import (
 	"fmt"
-	"go-frontend-framework/component"
-	"go-frontend-framework/signal"
+
+	"github.com/Sergio-Saraiva/go-frontend-framework/component"
+	"github.com/Sergio-Saraiva/go-frontend-framework/signal"
 )
 
 const Selector = "site-footer"

@@ -4,18 +4,19 @@ package main
 
 import (
 	"fmt"
-	"go-frontend-framework/component"
-	"go-frontend-framework/di"
-	"go-frontend-framework/router"
-	"go-frontend-framework/src/app/counter"
-	"go-frontend-framework/src/app/timer"
-	"go-frontend-framework/src/services"
 	"syscall/js"
+
+	"github.com/Sergio-Saraiva/go-frontend-framework/component"
+	"github.com/Sergio-Saraiva/go-frontend-framework/di"
+	"github.com/Sergio-Saraiva/go-frontend-framework/router"
+	"github.com/Sergio-Saraiva/go-frontend-framework/src/app/counter"
+	"github.com/Sergio-Saraiva/go-frontend-framework/src/app/timer"
+	"github.com/Sergio-Saraiva/go-frontend-framework/src/services"
 )
 
 func main() {
 	c := make(chan struct{}, 0)
-	fmt.Println("🚀 Application Started")
+	fmt.Println("Application Started")
 	userService := services.NewUserService()
 	di.Provide(userService)
 	router.Register("/timer", func() component.Interface { return timer.New() })

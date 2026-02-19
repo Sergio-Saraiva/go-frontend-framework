@@ -4,9 +4,10 @@ package component
 
 import (
 	"fmt"
-	"go-frontend-framework/di"
-	"go-frontend-framework/signal"
 	"reflect"
+
+	"github.com/Sergio-Saraiva/go-frontend-framework/di"
+	"github.com/Sergio-Saraiva/go-frontend-framework/signal"
 )
 
 type BaseComponent struct {

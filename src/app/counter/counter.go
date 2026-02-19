@@ -4,10 +4,11 @@ package counter
 
 import (
 	"fmt"
-	"go-frontend-framework/component"
-	"go-frontend-framework/router"
-	"go-frontend-framework/signal"
-	"go-frontend-framework/src/services"
+
+	"github.com/Sergio-Saraiva/go-frontend-framework/component"
+	"github.com/Sergio-Saraiva/go-frontend-framework/router"
+	"github.com/Sergio-Saraiva/go-frontend-framework/signal"
+	"github.com/Sergio-Saraiva/go-frontend-framework/src/services"
 )
 
 // Default selector "counter" (derived from folder name)
